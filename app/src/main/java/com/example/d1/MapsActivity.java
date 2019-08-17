@@ -44,7 +44,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         LatLng columbia = new LatLng(35.2256, -76.9023);
         mMap.addMarker(new MarkerOptions()
                 .position(columbia)
-                .title("Marker in Columbia")
+                .title("GC Columbia MD")
                 .draggable(true)
         );
         mMap.moveCamera(CameraUpdateFactory.newLatLng(columbia));
