@@ -7,11 +7,11 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     map:mapType="satellite"
-    map:cameraZoom="17"
+    map:cameraZoom="16"
     map:uiCompass="true"
     map:uiRotateGestures="true"
     map:uiScrollGestures="true"
     map:uiTiltGestures="false"
-    map:uiZoomControls="false"
+    map:uiZoomControls="true"
     map:uiZoomGestures="true"
     tools:context=".MapsActivity" />

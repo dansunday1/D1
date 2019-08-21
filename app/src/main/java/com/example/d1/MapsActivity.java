@@ -1,9 +1,11 @@
 package com.example.d1;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
+import android.location.Location;
 import android.os.Bundle;
 import android.util.Log;
 
@@ -11,19 +13,29 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.FragmentActivity;
 
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.tasks.OnSuccessListener;
+
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
 
-    private static final String TAG = "MapsActivity";
+    private static final String TAG = MapsActivity.class.getSimpleName();
     private static final int LOCATION_REQUEST_CODE = 101;
+    private FusedLocationProviderClient fusedLocationClient;
+    private Location mLastLocation;
+    private Location mCurrentLocation;
     private GoogleMap mMap;
+    private CameraPosition mCameraPosition;
 
+    @SuppressLint("MissingPermission")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -34,14 +46,39 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
 
+        // get permission to access fine location
         setupPermissions();
+
+/*
+        // TODO: 8/20/19   Test that location access permission is granted.
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED) {
+            // TODO: Consider calling Activity#requestPermissions
+            // here to request the missing permissions, and then overriding
+            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            //                                          int[] grantResults)
+            // to handle the case where the user grants the permission.
+            // See the documentation for Activity#requestPermissions for more details.
+            return;
+        }
+*/
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+        fusedLocationClient.getLastLocation()
+                .addOnSuccessListener(this, new OnSuccessListener<Location>() {
+                    @Override
+                    public void onSuccess(Location lastLocation) {
+                        // Got last known location. In rare situations this could be null.
+                        if (lastLocation != null) {
+                            mLastLocation = lastLocation;
+                        }
+                    }
+                });
     }
 
     private void setupPermissions() {
         int permission = ContextCompat.checkSelfPermission(this,
                 Manifest.permission.ACCESS_FINE_LOCATION);
 
-        // TODO: use SnackBar instead of AlertDialog
         if (permission != PackageManager.PERMISSION_GRANTED) {
             Log.i(TAG, "Permission to access location is denied");
             if (ActivityCompat.shouldShowRequestPermissionRationale(this,
@@ -82,11 +119,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 if (grantResults.length == 0
                     || grantResults[0] != PackageManager.PERMISSION_GRANTED) {
 
-                    Log.i(TAG, "Permission has been denied by user");
-                    // TODO: Explain needed, and Ask 1 more time before exiting
+                    Log.i(TAG, "User Denies Location Permission");
 
                 } else {
-                    Log.i(TAG, "Permission has been granted by user");
+                    Log.i(TAG, "User Grants Location Permission");
                 }
             }
         }
@@ -107,13 +143,28 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         Log.i(TAG, "Map is ready");
 
         // Add a marker in Columbia MD, and move the camera
-        LatLng columbia = new LatLng(39.2256, -76.9023);
+        LatLng columbiaGC = new LatLng(39.225618, -76.9001157);
         mMap.addMarker(new MarkerOptions()
-                .position(columbia)
+                .position(columbiaGC)
                 .title("Columbia GC")
-                .draggable(true)
+                .draggable(false)
         );
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(columbia));
+        mMap.moveCamera(CameraUpdateFactory.newLatLng(columbiaGC));
+
+        // Get current device location
+        GPSTracker mGpsTracker = new GPSTracker(getApplicationContext());
+        mCurrentLocation = mGpsTracker.getLocation();
+        if (mCurrentLocation == null) {
+            mCurrentLocation = mLastLocation;
+            if (mCurrentLocation == null) {
+                Log.i(TAG, "mCurrentLocation cannot be found");
+            }
+        }
+        Log.i(TAG, "mCurrentLocation: "
+                +"lat= "+mCurrentLocation.getLatitude()
+                +", lng= "+mCurrentLocation.getLongitude());
+
+        // TODO: 8/19/19 display current location marker on map 
     }
 
 }
