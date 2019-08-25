@@ -1,6 +1,7 @@
 package com.example.d1;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
@@ -23,6 +24,7 @@ import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.MapStyleOptions;
 import com.google.android.gms.tasks.OnSuccessListener;
 
 
@@ -34,10 +36,11 @@ public class MapsActivity extends FragmentActivity
     private static final String TAG = MapsActivity.class.getSimpleName();
     private static final int LOCATION_REQUEST_CODE = 101;
     private FusedLocationProviderClient fusedLocationClient;
-    private Location mLastLocation;
-    private Location mLocation;
-    private GoogleMap mMap;
-    private CameraPosition mCameraPosition;
+    private Location mLastLocation = null;
+    private Location mLocation = null;
+    private GoogleMap mMap = null;
+    private CameraPosition mCameraPosition = null;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -48,6 +51,7 @@ public class MapsActivity extends FragmentActivity
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
+
     }
 
 
@@ -60,6 +64,7 @@ public class MapsActivity extends FragmentActivity
      * it inside the SupportMapFragment. This method will only be triggered once the user has
      * installed Google Play services and returned to the app.
      */
+    @SuppressLint("MissingPermission")
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
@@ -68,17 +73,7 @@ public class MapsActivity extends FragmentActivity
         // get permission to access fine location
         setupPermissions();
 
-        // TODO: 8/21/19 Test that fine location access permission is granted.
-        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
-            != PackageManager.PERMISSION_GRANTED) {
-            Log.i(TAG, "checkSelfPermission failed");
-            // TODO: Consider calling Activity#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission.
-            // See the documentation for Activity#requestPermissions for more details.
-        }
+        // Get the last location used by this app (whenever)
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         fusedLocationClient.getLastLocation()
                 .addOnSuccessListener(this, new OnSuccessListener<Location>() {
@@ -87,14 +82,14 @@ public class MapsActivity extends FragmentActivity
                         // Got last known location. In rare situations this could be null.
                         if (lastLocation != null) {
                             mLastLocation = lastLocation;
+                            Log.i(TAG, "mLastLocation: "
+                                    +"lat= "+mLastLocation.getLatitude()
+                                    +", lng= "+mLastLocation.getLongitude());
+                        } else {
+                            Log.i(TAG, "mLastLocation not found");
                         }
                     }
                 });
-
-        // enable my location
-        mMap.setMyLocationEnabled(true);
-        mMap.setOnMyLocationButtonClickListener(this);
-        mMap.setOnMyLocationClickListener(this);
 
         // Get current device location
         GPSTracker mGpsTracker = new GPSTracker(getApplicationContext());
@@ -109,6 +104,23 @@ public class MapsActivity extends FragmentActivity
         }
         Log.i(TAG, "mLocation: "
                 +"lat= "+mLocation.getLatitude() +", lng= "+mLocation.getLongitude());
+
+        // TODO: 8/22/19 Style the map to enhance daytime visibility of GC fairways and greens
+        // Customise the styling of the base map using a JSON object defined
+        // in a string resource file. First create a MapStyleOptions object
+        // from the JSON styles string, then pass this to the setMapStyle
+        // method of the GoogleMap object.
+        boolean successStyle = googleMap.setMapStyle(new MapStyleOptions(getResources()
+                .getString(R.string.style_json)));
+        if (!successStyle) {
+            Log.e(TAG, "Style parsing failed.");
+        }
+        // enable displaying my location on the map, including click processing
+        mMap.setMyLocationEnabled(true);
+        mMap.setOnMyLocationButtonClickListener(this);
+        mMap.setOnMyLocationClickListener(this);
+
+
         // move to initial location
         LatLng here = new LatLng(mLocation.getLatitude(), mLocation.getLongitude());
         mMap.moveCamera(CameraUpdateFactory.newLatLng(here));
@@ -130,7 +142,7 @@ public class MapsActivity extends FragmentActivity
         // TODO: 8/21/19 Show lines and distances: ball->aimPt->pin
 
         // TODO: 8/21/19 Show distance rings from ball toward target pin
-        
+
     }
 
     @Override
@@ -148,21 +160,30 @@ public class MapsActivity extends FragmentActivity
 
 
     /*
-    * Access Permission code.
+    * Access Location Permission code.
     * TODO: 8/21/19 Consider putting access permission code in separate utility class
-     */
+    */
     private void setupPermissions() {
         Log.i(TAG, "setupPermissions");
+/* orig:
         int permission = ContextCompat.checkSelfPermission(this,
                 Manifest.permission.ACCESS_FINE_LOCATION);
+*/
+        int permission = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION);
 
         if (permission != PackageManager.PERMISSION_GRANTED) {
-            Log.i(TAG, "Permission to access location is denied");
+            Log.i(TAG, "Permission not yet granted to access location");
+            // Call Activity#requestPermissions here
+            // to request the missing permissions, and then overriding
+            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            //                                          int[] grantResults)
+            // to handle the case where the user grants the permission.
+            // See the documentation for Activity#requestPermissions for more details.
             if (ActivityCompat.shouldShowRequestPermissionRationale(this,
                     Manifest.permission.ACCESS_FINE_LOCATION)) {
                 AlertDialog.Builder builder =
                         new AlertDialog.Builder(this);
-                builder.setMessage("Permission to access location info is required for this app.")
+                builder.setMessage("Permission to access the location is needed for this app.")
                         .setTitle("Permission required");
 
                 builder.setPositiveButton("OK",
@@ -199,6 +220,7 @@ public class MapsActivity extends FragmentActivity
                         || grantResults[0] != PackageManager.PERMISSION_GRANTED) {
 
                     Log.i(TAG, "User Denies Location Permission");
+                    // TODO: 8/22/19 Explain that app can't be run without location access. Sorry.
 
                 } else {
                     Log.i(TAG, "User Grants Location Permission");
