@@ -16,6 +16,7 @@ import androidx.core.content.ContextCompat;
 import androidx.fragment.app.FragmentActivity;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
@@ -36,9 +37,10 @@ public class MapsActivity extends FragmentActivity
     private static final String TAG = MapsActivity.class.getSimpleName();
     private static final int LOCATION_REQUEST_CODE = 101;
     private FusedLocationProviderClient fusedLocationClient;
-    private Location mLastLocation = null;
-    private Location mLocation = null;
-    private GoogleMap mMap = null;
+    private GPSTracker mGpsTracker;
+    private Location mLastLocation;
+    private Location mLocation;
+    private GoogleMap mMap;
     private CameraPosition mCameraPosition = null;
 
 
@@ -47,6 +49,32 @@ public class MapsActivity extends FragmentActivity
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
 
+        // get permission to access fine location
+        setupPermissions();
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+
+        // Get the last location used by this app (whenever)
+        fusedLocationClient.getLastLocation()
+                .addOnSuccessListener(this, new OnSuccessListener<Location>() {
+                    @Override
+                    public void onSuccess(Location lastLocation) {
+                        // Got last known location. In rare situations this could be null.
+                        if (lastLocation != null) {
+                            mLastLocation = lastLocation;
+                            Log.i(TAG, "mLastLocation: "
+                                    +"lat= "+mLastLocation.getLatitude()
+                                    +", lng= "+mLastLocation.getLongitude());
+                        } else {
+                            // maybe there isn't one for this phone
+                            Log.i(TAG, "mLastLocation not found");
+                        }
+                    }
+                });
+
+        mGpsTracker = new GPSTracker(getApplicationContext());
+        createLocationRequest();
+
+
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
@@ -54,6 +82,12 @@ public class MapsActivity extends FragmentActivity
 
     }
 
+    protected void createLocationRequest() {
+        LocationRequest locationRequest = LocationRequest.create();
+        locationRequest.setInterval(10000);
+        locationRequest.setFastestInterval(5000);
+        locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+    }
 
     /**
      * Manipulates the map once available.
@@ -70,29 +104,21 @@ public class MapsActivity extends FragmentActivity
         mMap = googleMap;
         Log.i(TAG, "Map is ready");
 
-        // get permission to access fine location
-        setupPermissions();
-
-        // Get the last location used by this app (whenever)
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
-        fusedLocationClient.getLastLocation()
-                .addOnSuccessListener(this, new OnSuccessListener<Location>() {
-                    @Override
-                    public void onSuccess(Location lastLocation) {
-                        // Got last known location. In rare situations this could be null.
-                        if (lastLocation != null) {
-                            mLastLocation = lastLocation;
-                            Log.i(TAG, "mLastLocation: "
-                                    +"lat= "+mLastLocation.getLatitude()
-                                    +", lng= "+mLastLocation.getLongitude());
-                        } else {
-                            Log.i(TAG, "mLastLocation not found");
-                        }
-                    }
-                });
+        // Customise the styling of the base map using a JSON object defined
+        // in a string resource file. First create a MapStyleOptions object
+        // from the JSON styles string, then pass this to the setMapStyle
+        // method of the GoogleMap object.
+        boolean successStyle = googleMap.setMapStyle(new MapStyleOptions(getResources()
+                .getString(R.string.style_json)));
+        if (!successStyle) {
+            Log.e(TAG, "Map style json parsing failed.");
+        }
+        // enable displaying my location on the map, including click processing
+        mMap.setMyLocationEnabled(true);
+        mMap.setOnMyLocationButtonClickListener(this);
+        mMap.setOnMyLocationClickListener(this);
 
         // Get current device location
-        GPSTracker mGpsTracker = new GPSTracker(getApplicationContext());
         mLocation = mGpsTracker.getLocation();
         if (mLocation == null) {
             mLocation = mLastLocation;
@@ -104,21 +130,6 @@ public class MapsActivity extends FragmentActivity
         }
         Log.i(TAG, "mLocation: "
                 +"lat= "+mLocation.getLatitude() +", lng= "+mLocation.getLongitude());
-
-        // TODO: 8/22/19 Style the map to enhance daytime visibility of GC fairways and greens
-        // Customise the styling of the base map using a JSON object defined
-        // in a string resource file. First create a MapStyleOptions object
-        // from the JSON styles string, then pass this to the setMapStyle
-        // method of the GoogleMap object.
-        boolean successStyle = googleMap.setMapStyle(new MapStyleOptions(getResources()
-                .getString(R.string.style_json)));
-        if (!successStyle) {
-            Log.e(TAG, "Style parsing failed.");
-        }
-        // enable displaying my location on the map, including click processing
-        mMap.setMyLocationEnabled(true);
-        mMap.setOnMyLocationButtonClickListener(this);
-        mMap.setOnMyLocationClickListener(this);
 
 
         // move to initial location
